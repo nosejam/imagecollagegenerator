@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Collage Maker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 900px;
+            margin: 20px auto;
+        }
+        h1 {
+            text-align: center;
+            color: #0056b3;
+            margin-bottom: 25px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            display: block;
+            margin-top: 5px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        input[type="number"], input[type="text"] {
+            width: 150px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #ffe0b2;
+            color: #e65100;
+            display: none;
+        }
+        #collageContainer {
+            margin-top: 30px;
+            text-align: center;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            display: block;
+            margin: 20px auto;
+            max-width: 100%; /* Ensure canvas doesn't overflow */
+            height: auto;
+        }
+        #downloadBtn {
+            background-color: #28a745;
+            margin-top: 15px;
+        }
+        #downloadBtn:hover {
+            background-color: #218838;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #007bff;
+            animation: spin 1s ease infinite;
+            display: none; /* Hidden by default */
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Thumbnail display */
+        #thumbnailContainer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            background-color: #fcfcfc;
+            max-height: 300px; /* Limit height and add scroll */
+            overflow-y: auto;
+        }
+        .thumbnail-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid #ddd;
+            padding: 5px;
+            border-radius: 4px;
+            background-color: #fff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .thumbnail-item img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain; /* Use 'contain' to avoid cropping thumbnails */
+            margin-bottom: 5px;
+            border: 1px solid #eee;
+        }
+        .thumbnail-item input[type="text"] {
+            width: 100px;
+            font-size: 0.8em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Image Collage Maker</h1>
+
+        <div class="input-group">
+            <label for="imageUpload">Upload Images:</label>
+            <input type="file" id="imageUpload" multiple accept="image/*">
+        </div>
+
+        <div id="thumbnailContainer">
+            <p id="noThumbnailsMessage">No images uploaded yet.</p>
+        </div>
+
+        <div class="input-group">
+            <label for="desiredWidth">Desired Final Width (pixels):</label>
+            <input type="number" id="desiredWidth" value="5000" min="100">
+        </div>
+
+        <div class="input-group">
+            <label for="desiredHeight">Desired Final Height (pixels):</label>
+            <input type="number" id="desiredHeight" value="4000" min="100">
+        </div>
+
+        <div class="input-group">
+            <input type="checkbox" id="addTextCheckbox">
+            <label for="addTextCheckbox">Add Text to Images (using filename)</label>
+        </div>
+
+        <div class="input-group">
+            <label for="fontSize">Text Font Size (pixels):</label>
+            <input type="number" id="fontSize" value="50" min="10">
+        </div>
+
+        <button id="generateBtn" disabled>Generate Collage</button>
+        <div id="message"></div>
+        <div class="spinner" id="loadingSpinner"></div>
+
+        <div id="collageContainer">
+            <h2>Generated Collage</h2>
+            <canvas id="collageCanvas"></canvas>
+            <button id="downloadBtn" style="display: none;">Download Collage</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const imageUpload = document.getElementById('imageUpload');
+            const desiredWidthInput = document.getElementById('desiredWidth');
+            const desiredHeightInput = document.getElementById('desiredHeight');
+            const addTextCheckbox = document.getElementById('addTextCheckbox');
+            const fontSizeInput = document.getElementById('fontSize'); // New element
+            const generateBtn = document.getElementById('generateBtn');
+            const messageDiv = document.getElementById('message');
+            const collageCanvas = document.getElementById('collageCanvas');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const thumbnailContainer = document.getElementById('thumbnailContainer');
+            const noThumbnailsMessage = document.getElementById('noThumbnailsMessage');
+            const ctx = collageCanvas.getContext('2d');
+
+            let uploadedImages = []; // Stores objects: { file: File, name: string, initialWidth: number, initialHeight: number, imageElement: HTMLImageElement, id: string }
+
+            // Helper functions
+            function showMessage(msg, type = 'warning') {
+                messageDiv.textContent = msg;
+                messageDiv.style.backgroundColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d4edda' : '#ffe0b2');
+                messageDiv.style.color = type === 'error' ? '#721c24' : (type === 'success' ? '#155724' : '#e65100');
+                messageDiv.style.display = 'block';
+            }
+
+            function hideMessage() {
+                messageDiv.style.display = 'none';
+            }
+
+            function showSpinner() {
+                loadingSpinner.style.display = 'block';
+                generateBtn.disabled = true;
+            }
+
+            function hideSpinner() {
+                loadingSpinner.style.display = 'none';
+                generateBtn.disabled = false;
+            }
+
+            // Function to render thumbnails
+            function renderThumbnails() {
+                thumbnailContainer.innerHTML = ''; // Clear previous thumbnails
+                if (uploadedImages.length === 0) {
+                    noThumbnailsMessage.style.display = 'block';
+                    thumbnailContainer.appendChild(noThumbnailsMessage);
+                    return;
+                }
+                noThumbnailsMessage.style.display = 'none';
+
+                uploadedImages.forEach(imgData => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'thumbnail-item';
+
+                    const imgElement = document.createElement('img');
+                    imgElement.src = imgData.imageElement.src;
+                    imgElement.alt = imgData.name;
+
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.value = imgData.name;
+                    nameInput.dataset.imageId = imgData.id; // Link to the image data
+                    nameInput.addEventListener('input', (e) => {
+                        // Update the name in the uploadedImages array
+                        const id = e.target.dataset.imageId;
+                        const imageToUpdate = uploadedImages.find(img => img.id === id);
+                        if (imageToUpdate) {
+                            imageToUpdate.name = e.target.value;
+                        }
+                    });
+
+                    itemDiv.appendChild(imgElement);
+                    itemDiv.appendChild(nameInput);
+                    thumbnailContainer.appendChild(itemDiv);
+                });
+            }
+
+
+            // Read image files and get their dimensions
+            imageUpload.addEventListener('change', async (event) => {
+                uploadedImages = [];
+                hideMessage();
+                downloadBtn.style.display = 'none';
+                generateBtn.disabled = true;
+                thumbnailContainer.innerHTML = ''; // Clear thumbnails
+                noThumbnailsMessage.style.display = 'block';
+
+
+                const files = Array.from(event.target.files);
+
+                if (files.length === 0) {
+                    showMessage("Please upload at least one image.");
+                    return;
+                }
+
+                showSpinner();
+
+                const loadImagePromises = files.map(file => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const filenameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                                uploadedImages.push({
+                                    file: file,
+                                    name: filenameWithoutExt, // Store filename without extension
+                                    initialWidth: img.naturalWidth,
+                                    initialHeight: img.naturalHeight,
+                                    imageElement: img,
+                                    id: Math.random().toString(36).substring(2, 11), // Unique ID for linking to inputs
+                                    // These will be calculated later
+                                    scaledWidth_step2: 0, scaledHeight_step2: 0,
+                                    adjustedWidth_step9: 0, adjustedHeight_step9: 0,
+                                    finalRenderWidth: 0, finalRenderHeight: 0,
+                                    cropSourceX: 0, cropSourceY: 0,
+                                    cropSourceWidth: 0, cropSourceHeight: 0,
+                                });
+                                resolve();
+                            };
+                            img.onerror = () => reject(new Error(`Failed to load image: ${file.name}`));
+                            img.src = e.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                try {
+                    await Promise.all(loadImagePromises);
+                    // Sort alphabetically by initial filename (before editing)
+                    uploadedImages.sort((a, b) => a.file.name.localeCompare(b.file.name));
+                    renderThumbnails(); // Render thumbnails after loading
+                    generateBtn.disabled = false;
+                    hideSpinner();
+                    showMessage(`Successfully loaded ${uploadedImages.length} images.`, 'success');
+                } catch (error) {
+                    hideSpinner();
+                    showMessage(`Error loading images: ${error.message}`, 'error');
+                }
+            });
+
+            // Generate Collage
+            generateBtn.addEventListener('click', () => {
+                const desiredWidth = parseInt(desiredWidthInput.value, 10);
+                const desiredHeight = parseInt(desiredHeightInput.value, 10);
+                const addText = addTextCheckbox.checked;
+                const userFontSize = parseInt(fontSizeInput.value, 10); // Get user-defined font size
+                const TEXT_FONT_SIZE = isNaN(userFontSize) || userFontSize < 10 ? 50 : userFontSize; // Default or user-defined
+                const TEXT_PADDING_BOTTOM = 20; // Padding from bottom of image location
+
+                if (uploadedImages.length === 0) {
+                    showMessage("Please upload images first.");
+                    return;
+                }
+                if (isNaN(desiredWidth) || desiredWidth <= 0 || isNaN(desiredHeight) || desiredHeight <= 0) {
+                    showMessage("Please enter valid positive numbers for desired width and height.");
+                    return;
+                }
+
+                hideMessage();
+                showSpinner();
+                downloadBtn.style.display = 'none';
+
+                // --- Algorithm Steps ---
+
+                // 1) read in all image widths and heights (done during upload)
+
+                // 2) use the largest image height as reference and multiply all other image dimensions by a scaling factor
+                //    to determine sizes if all images were the same height.
+                const largestHeight = Math.max(...uploadedImages.map(img => img.initialHeight));
+                uploadedImages.forEach(img => {
+                    const scaleFactor = largestHeight / img.initialHeight;
+                    img.scaledWidth_step2 = img.initialWidth * scaleFactor;
+                    img.scaledHeight_step2 = largestHeight;
+                });
+
+                // 3) solve for total area of images if they were the same height
+                let totalArea_step3 = 0;
+                uploadedImages.forEach(img => {
+                    totalArea_step3 += img.scaledWidth_step2 * img.scaledHeight_step2;
+                });
+
+                // 4) solve for total area of desired final image
+                const finalImageArea_step4 = desiredWidth * desiredHeight;
+
+                // 5) determine scaling factor of final image relative to total area of input images.
+                const overallScaleFactor_step5 = Math.sqrt(finalImageArea_step4 / totalArea_step3);
+
+                // 6) multiply all image dimensions by the scaling factor to get closer to the final dimensions.
+                uploadedImages.forEach(img => {
+                    // Temporarily store these as currentWidth/Height for row calculation
+                    img.currentWidth = img.scaledWidth_step2 * overallScaleFactor_step5;
+                    img.currentHeight = img.scaledHeight_step2 * overallScaleFactor_step5;
+                });
+
+                // 7) Arrange the images in rows based on alphabetical order with the first image in the top left corner.
+                // (Already sorted during upload)
+
+                // 8) The number of images in each row is based on the sum of the widths of images.
+                //    The number of images used in each row is the number that results in the closest sum of widths to the final image width.
+                const rows = [];
+                let currentIndex = 0;
+                while (currentIndex < uploadedImages.length) {
+                    let currentRowImages = [];
+                    let currentSumOfWidths = 0;
+                    let bestSumOfWidthsDiff = Infinity; // Using difference to desiredWidth
+                    let bestRowLength = 0;
+
+                    // Evaluate possible row lengths starting from 1 image
+                    for (let i = currentIndex; i < uploadedImages.length; i++) {
+                        const potentialNextWidth = uploadedImages[i].currentWidth;
+                        const sumIfAdded = currentSumOfWidths + potentialNextWidth;
+                        const newDiff = Math.abs(sumIfAdded - desiredWidth);
+                        const currentDiff = Math.abs(currentSumOfWidths - desiredWidth);
+
+                        if (i === currentIndex) { // Always include at least one image
+                            bestSumOfWidthsDiff = newDiff;
+                            bestRowLength = 1;
+                            currentSumOfWidths = sumIfAdded;
+                        } else if (newDiff < bestSumOfWidthsDiff) {
+                            bestSumOfWidthsDiff = newDiff;
+                            bestRowLength = (i - currentIndex) + 1;
+                            currentSumOfWidths = sumIfAdded; // Continue accumulating for next iteration's check
+                        } else if (newDiff >= currentDiff && i > currentIndex) {
+                            // If adding the next image makes the difference worse or equal (and we've already added at least one), stop
+                            // This ensures we pick the closest, potentially slightly under or over.
+                             break;
+                        } else { // Keep accumulating for next iteration's check
+                             currentSumOfWidths = sumIfAdded;
+                        }
+                    }
+
+                    // Populate the best row
+                    for (let i = 0; i < bestRowLength; i++) {
+                        currentRowImages.push(uploadedImages[currentIndex + i]);
+                    }
+                    rows.push(currentRowImages);
+                    currentIndex += bestRowLength;
+                }
+
+                // 9) Calculate the ratio of the width of the images in each row relative to the width of the final image.
+                //    Use that ratio to adjust the dimensions of each image to perfectly fit the desired row width.
+                rows.forEach(row => {
+                    const rowCurrentWidthSum = row.reduce((sum, img) => sum + img.currentWidth, 0);
+                    const rowWidthAdjustmentRatio = desiredWidth / rowCurrentWidthSum;
+
+                    row.forEach(img => {
+                        img.adjustedWidth_step9 = img.currentWidth * rowWidthAdjustmentRatio;
+                        img.adjustedHeight_step9 = img.currentHeight * rowWidthAdjustmentRatio; // Height also scales
+                    });
+                });
+
+                // 10) After adjusting all rows to perfectly match the width, the height will most likely be incorrect.
+                //     Calculate final dimensions and crop values.
+                let totalCompositedHeight = rows.reduce((sum, row) => sum + (row.length > 0 ? row[0].adjustedHeight_step9 : 0), 0);
+
+                if (totalCompositedHeight < desiredHeight) {
+                    // Height is too short, increase each row height and proportionally increase width, then crop width
+                    const heightExpansionRatio = desiredHeight / totalCompositedHeight;
+
+                    rows.forEach(row => {
+                        const originalRowHeightAdjusted = row[0].adjustedHeight_step9; // All images in row have this height
+                        const tempRenderRowHeight = originalRowHeightAdjusted * heightExpansionRatio;
+
+                        row.forEach(img => {
+                            const originalImgWidthAdjusted = img.adjustedWidth_step9;
+                            const originalImgHeightAdjusted = img.adjustedHeight_step9;
+
+                            // Scale the original image's natural dimensions based on the calculated tempRenderRowHeight
+                            // This gives us the size the image *would be* if it were simply stretched to tempRenderRowHeight
+                            const scaledSourceWidth = img.imageElement.naturalWidth * (tempRenderRowHeight / img.imageElement.naturalHeight);
+                            // const scaledSourceHeight = tempRenderRowHeight; // This will be the actual height we are rendering to on canvas
+
+                            // Calculate the excess width that needs to be cropped from the scaled image.
+                            // The target width for each image on the canvas is its adjustedWidth_step9
+                            const targetCanvasWidth = originalImgWidthAdjusted;
+                            const excessWidthToCrop = scaledSourceWidth - targetCanvasWidth;
+
+                            img.cropSourceX = Math.max(0, (excessWidthToCrop / 2) * (img.imageElement.naturalWidth / scaledSourceWidth));
+                            img.cropSourceY = 0; // No vertical cropping in this case
+                            img.cropSourceWidth = img.imageElement.naturalWidth - (excessWidthToCrop * (img.imageElement.naturalWidth / scaledSourceWidth));
+                            img.cropSourceHeight = img.imageElement.naturalHeight; // Use full original height for source
+
+                            img.finalRenderWidth = targetCanvasWidth; // Destination width on canvas
+                            img.finalRenderHeight = tempRenderRowHeight; // Destination height on canvas
+                        });
+                    });
+
+                } else if (totalCompositedHeight > desiredHeight) {
+                    // Height is too tall, crop top/bottom
+                    const heightCropRatio = desiredHeight / totalCompositedHeight;
+
+                    rows.forEach(row => {
+                        const originalRowHeightAdjusted = row[0].adjustedHeight_step9; // All images in row have this height
+                        const finalRenderRowHeight = originalRowHeightAdjusted * heightCropRatio;
+
+                        row.forEach(img => {
+                            const originalImgWidthAdjusted = img.adjustedWidth_step9;
+                            const originalImgHeightAdjusted = img.adjustedHeight_step9; // Height from step 9
+
+                            // Calculate the excess height that needs to be cropped from the adjusted_step9 dimensions
+                            const excessHeightToCrop = originalImgHeightAdjusted - finalRenderRowHeight;
+
+                            img.cropSourceX = 0; // No horizontal cropping in this case
+                            img.cropSourceY = Math.max(0, (excessHeightToCrop / 2) * (img.imageElement.naturalHeight / originalImgHeightAdjusted));
+                            img.cropSourceWidth = img.imageElement.naturalWidth; // Use full original width for source
+                            img.cropSourceHeight = img.imageElement.naturalHeight - (excessHeightToCrop * (img.imageElement.naturalHeight / originalImgHeightAdjusted));
+
+                            img.finalRenderWidth = originalImgWidthAdjusted; // Destination width on canvas
+                            img.finalRenderHeight = finalRenderRowHeight; // Destination height on canvas
+                        });
+                    });
+                } else {
+                    // Height is perfect, use adjusted dimensions from step 9
+                    rows.forEach(row => {
+                        row.forEach(img => {
+                            img.finalRenderWidth = img.adjustedWidth_step9;
+                            img.finalRenderHeight = img.adjustedHeight_step9;
+                            img.cropSourceX = 0;
+                            img.cropSourceY = 0;
+                            img.cropSourceWidth = img.imageElement.naturalWidth;
+                            img.cropSourceHeight = img.imageElement.naturalHeight;
+                        });
+                    });
+                }
+
+                // 11) Render the final image
+                collageCanvas.width = desiredWidth;
+                collageCanvas.height = desiredHeight;
+                ctx.clearRect(0, 0, desiredWidth, desiredHeight); // Clear previous drawings
+
+                let currentYOffset = 0;
+                rows.forEach(row => {
+                    let currentXOffset = 0;
+                    const rowHeight = row.length > 0 ? row[0].finalRenderHeight : 0; // All images in a row have the same final height
+
+                    row.forEach(img => {
+                        // Draw image
+                        ctx.drawImage(
+                            img.imageElement,
+                            img.cropSourceX, img.cropSourceY, // Source X, Y
+                            img.cropSourceWidth, img.cropSourceHeight, // Source Width, Height
+                            currentXOffset, currentYOffset, // Destination X, Y
+                            img.finalRenderWidth, img.finalRenderHeight // Destination Width, Height
+                        );
+
+                        // Add text if checkbox is checked and text exists
+                        if (addText && img.name) {
+                            ctx.font = `${TEXT_FONT_SIZE}px Arial`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'alphabetic'; // Positions baseline at y
+
+                            const textX = currentXOffset + (img.finalRenderWidth / 2);
+                            const textY = currentYOffset + img.finalRenderHeight - TEXT_PADDING_BOTTOM;
+
+                            // Apply stroke
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 2; // Thin black stroke
+                            ctx.strokeText(img.name, textX, textY);
+
+                            // Apply fill
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillText(img.name, textX, textY);
+                        }
+
+                        currentXOffset += img.finalRenderWidth;
+                    });
+                    currentYOffset += rowHeight;
+                });
+
+                hideSpinner();
+                downloadBtn.style.display = 'block';
+                showMessage("Collage generated successfully! Scroll down to view and download.", 'success');
+            });
+
+            // Download Collage
+            downloadBtn.addEventListener('click', () => {
+                const dataURL = collageCanvas.toDataURL('image/png'); // Can change to 'image/jpeg' if preferred
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = `collage_${desiredWidthInput.value}x${desiredHeightInput.value}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            });
+        });
+    </script>
+
+</body>
+</html>
